@@ -9,10 +9,35 @@ const prisma = new PrismaClient();
 const app = express();
 
 app.use(express.json());
-app.use(cors({
-  origin: process.env.FRONTEND_URL,
+
+// Normalize FRONTEND_URL (remove trailing slashes) and allow matching origin
+const _rawFrontend = process.env.FRONTEND_URL;
+const FRONTEND_URL_NORMALIZED = _rawFrontend ? _rawFrontend.replace(/\/+$/, '') : undefined;
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow non-browser requests (e.g., curl, server-to-server) where origin is undefined
+    if (!origin) return callback(null, true);
+
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+
+    // Allow exact match with configured frontend URL
+    if (FRONTEND_URL_NORMALIZED && normalizedOrigin === FRONTEND_URL_NORMALIZED) {
+      return callback(null, true);
+    }
+
+    // Also allow localhost during local development
+    if (/^http:\/\/localhost(:\d+)?$/.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // Reject other origins
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 app.get('/', (req, res) => {
   res.json({ message: 'PrimeTrade Backend is running' });
